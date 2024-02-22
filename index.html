@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Kettlebell Dice</title>
+    <link rel="icon" type="image/png" href="kettlebell.png" title="kettlebell icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js" integrity="sha512-ykZ1QQr0Jy/4ZkvKuqWn4iF3lqPZyij9iRv6sGqLRdTPkY69YX6+7wvVGmsdBbiIfN/8OdsI7HABjvEok6ZopQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module" src="https://unpkg.com/@layflags/rolling-number@1.0.0/rolling-number.js"></script>
+    <script src="easytimer.min.js"></script>
+</head>
+<body  data-bs-theme="dark" class="container-fluid">
+    <div class="row  mt-4">
+
+        <div class="col-lg-2 col-12">
+            <div class="col-lg-6 col-12 mx-auto">
+                <div class="input-group mb-3">
+                    <input type="number" class="form-control" value="35" id="in_exc_minutes">
+                    <span class="input-group-text" id="basic-addon2">minutes</span>
+                </div>
+            </div>
+            <button class="btn btn-lg btn-success p-5 d-block mx-auto mb-5" id="btn_new_round"> Start Session </button>
+            <button class="btn btn-sm btn-warning d-block mx-auto mt-5 d-none" id="btn_reset"> Reset </button>
+        </div>
+
+        <div class="col-lg-7 col-12 " >
+            <div id="session_section" class="d-none">
+                <div class="row my-2">
+                    <div class="mx-auto col-lg-6 col-12 d-flex justify-content-center align-items-center">
+                        <span id="span_timer" class="fs-2"></span>
+                    </div>
+                </div>
+
+                <div id="latest" class="row">
+                    <div class="col-lg-2 col-4 ms-auto p-3 border d-flex justify-content-center align-items-center">
+                        <span class="align-middle">Exc. (D6)</span>
+                        <layflags-rolling-number style="--roll-duration:750ms" class="ms-4 fs-2" id="d6"></layflags-rolling-number>
+                    </div>
+                    <div class="col-lg-2 col-4 me-auto p-3 border d-flex justify-content-center align-items-center">
+                        <span class="align-middle">Rep. (D10)</span>
+                        <layflags-rolling-number style="--roll-duration:750ms" class="ms-4 fs-2" id="d10"></layflags-rolling-number>
+                    </div>
+                    <div class="col-12 d-flex justify-content-center align-items-center">
+                        <span>actual: </span>
+                        <span class="align-middle fs-1 ms-3" id="actual_exc"></span>
+                    </div>
+                </div>
+
+                <div id="history" class="row mt-4">
+                    <div class="mx-auto col-lg-6 col-12 d-flex justify-content-center align-items-center">
+                        <ol id="ol_history" reversed style="max-height:475px; overflow-y:scroll">
+                        </ol>
+                    </div>     
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-12">
+            <h4>Excercise List</h4>
+            <table  class="table table-striped">
+                <tr>
+                    <th>D6 Dice</th>
+                    <th>Excercise</th>
+                    <th>Rep. Modifier</th>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>2 handed swing</td>
+                    <td> * 15</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>clean & press</td>
+                    <td> * 1</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>snatch</td>
+                    <td> * 1</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>goblet squat</td>
+                    <td> * 1</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>windmill</td>
+                    <td> * 1</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>deadlift</td>
+                    <td> * 1 + 1</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        var roundCounter = 0
+        var dice = { 
+            d6: { 
+                val: 0, 
+                el: document.getElementById("d6")
+            }, 
+            d10: {
+                val: 0,
+                el: document.getElementById("d10")
+            } 
+        }
+
+        const btn_reset = document.getElementById('btn_reset')
+
+        const btn_new_round = document.getElementById('btn_new_round')
+        const btn_texts = {
+            new: "New Session",
+            next: "Next Excercise"
+        }
+        const actual_exc = document.getElementById('actual_exc')
+        const ol_history = document.getElementById('ol_history')
+
+        const session_section = document.getElementById("session_section")
+
+        const excercises = [
+            ,
+            { name: "swing", rep: d10 => d10 * 15 },
+            { name: "clean & press", rep: d10 => d10  },
+            { name: "snatch", rep: d10 => d10  },
+            { name: "goblet squat", rep: d10 => d10  },
+            { name: "windmill", rep: d10 => d10  },
+            { name: "deadlift", rep: d10 => d10 + 5 }
+        ]
+
+        const timer = new easytimer.Timer();
+        const span_timer = document.getElementById("span_timer")
+        const in_exc_minutes = document.getElementById("in_exc_minutes")
+
+        var last_5_roll = []
+        
+        const getDiceNum = n => Math.floor(Math.random() * (n - 1 + 1) + 1)
+
+        const rollDice = n => {
+            dice["d" + n].val = getDiceNum(n)
+            dice["d" + n].el.value = dice["d" + n].val
+        }
+
+        const check_last5 = (newVal) => {
+            const cnt = last_5_roll.filter(v => v == newVal).length
+            if(cnt < 2) {
+                last_5_roll.push(newVal)
+                if(last_5_roll.length > 5) {
+                    last_5_roll.shift()
+                }
+                return true
+            } else {
+                return false
+            }
+        }
+
+        btn_new_round.addEventListener('click', e => {
+            if(roundCounter == 0) {
+                btn_new_round.innerHTML = btn_texts.next
+
+                timer.start({countdown: true, startValues: {minutes: in_exc_minutes.value}});
+
+                span_timer.innerHTML = timer.getTimeValues().toString().substring(3)
+                
+                timer.addEventListener('secondsUpdated', function (e) {
+                    span_timer.innerHTML = timer.getTimeValues().toString().substring(3)
+                });
+
+                timer.addEventListener('targetAchieved', function (e) {
+                    span_timer.classList.add("text-success")
+                    span_timer.innerHTML = 'Congratulations, finished!'
+                    btn_new_round.setAttribute("disabled", "disabled")
+                });
+
+                in_exc_minutes.parentElement.classList.add("d-none")
+                btn_reset.classList.remove("d-none")
+                session_section.classList.remove("d-none")
+            }
+
+            roundCounter += 1
+            rollDice(6)
+            while(!check_last5(dice.d6.val)) {
+                rollDice(6)
+            }
+            rollDice(10)
+
+            const exc_text = excercises[dice.d6.val].rep(dice.d10.val) + " x "  +excercises[dice.d6.val].name 
+            actual_exc.innerHTML =  exc_text
+            
+            const li = document.createElement("li")
+            li.innerHTML = timer.getTimeValues().toString().substring(3) + " - " + exc_text
+            li.classList.add("ms-3")
+            ol_history.prepend(li)
+
+        })
+
+        btn_reset.addEventListener("click", () => {
+            ol_history.innerHTML = ""
+            dice.d6.el.value = ""
+            dice.d10.el.value = ""
+            btn_new_round.innerHTML = btn_texts.new
+            btn_new_round.removeAttribute("disabled")
+            actual_exc.innerHTML = ""
+            in_exc_minutes.parentElement.classList.remove("d-none")
+            timer.stop()
+            span_timer.innerHTML = ""
+            span_timer.classList.remove("text-success")
+            roundCounter = 0
+            btn_reset.classList.add("d-none")
+            last_5_roll = []
+        })
+
+    </script>
+</body>
+</html>
