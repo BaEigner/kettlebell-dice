@@ -7,13 +7,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js" integrity="sha512-ykZ1QQr0Jy/4ZkvKuqWn4iF3lqPZyij9iRv6sGqLRdTPkY69YX6+7wvVGmsdBbiIfN/8OdsI7HABjvEok6ZopQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="module" src="https://unpkg.com/@layflags/rolling-number@1.0.0/rolling-number.js"></script>
-    <script src="easytimer.min.js"></script>
+    
+    <script src="
+https://cdn.jsdelivr.net/npm/easytimer.js@4.6.0/dist/easytimer.min.js
+"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.29.1/plotly-basic.min.js" integrity="sha512-v6buxtYW4jhmm4QH5bN04xXGAyYbsnp0s09fJXKJlDkcZ29MuMQPEHvogk/L0T8B0QeYhyOBzI9Zp0fV2vwoQg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body  data-bs-theme="dark" class="container-fluid">
     <div class="row  mt-4">
 
-        <div class="col-lg-2 col-12">
-            <div class="col-lg-6 col-12 mx-auto">
+        <div class="col-lg-2 col-sm-12">
+            <div class="col-md-10 col-12 mx-auto">
                 <div class="input-group mb-3">
                     <input type="number" class="form-control" value="35" id="in_exc_minutes">
                     <span class="input-group-text" id="basic-addon2">minutes</span>
@@ -27,7 +31,7 @@
             <div id="session_section" class="d-none">
                 <div class="row my-2">
                     <div class="mx-auto col-lg-6 col-12 d-flex justify-content-center align-items-center">
-                        <span id="span_timer" class="fs-2"></span>
+                        <span id="span_timer" class="fs-1"></span>
                     </div>
                 </div>
 
@@ -46,9 +50,16 @@
                     </div>
                 </div>
 
+                <div id="summary" class="row px-3">
+                    <div class="col-lg-6 col-12" id="chart_exc_count"></div>
+                    <div class="col-lg-6 col-12" id="chart_exc_time"></div>
+                    <div class="col-lg-6 col-12 mt-3 mx-auto" id="chart_exc_reps"></div>
+                    <div class="col-12" id="tbl_summary"></div>
+                </div>
+
                 <div id="history" class="row mt-4">
                     <div class="mx-auto col-lg-6 col-12 d-flex justify-content-center align-items-center">
-                        <ol id="ol_history" reversed style="max-height:475px; overflow-y:scroll">
+                        <ol id="ol_history" reversed>
                         </ol>
                     </div>     
                 </div>
@@ -66,7 +77,7 @@
                 <tr>
                     <td>1</td>
                     <td>2 handed swing</td>
-                    <td> * 15</td>
+                    <td> * 5</td>
                 </tr>
                 <tr>
                     <td>2</td>
@@ -110,6 +121,8 @@
             } 
         }
 
+        const el_latest = document.getElementById('latest')
+
         const btn_reset = document.getElementById('btn_reset')
 
         const btn_new_round = document.getElementById('btn_new_round')
@@ -123,22 +136,34 @@
         const session_section = document.getElementById("session_section")
 
         const excercises = [
-            ,
-            { name: "swing", rep: d10 => d10 * 15 },
-            { name: "clean & press", rep: d10 => d10  },
-            { name: "snatch", rep: d10 => d10  },
-            { name: "goblet squat", rep: d10 => d10  },
-            { name: "windmill", rep: d10 => d10  },
-            { name: "deadlift", rep: d10 => d10 + 5 }
+            { name: "swing",            rep: d10 => d10 * 5 /*15*/ },
+            { name: "clean & press",    rep: d10 => d10  },
+            { name: "snatch",           rep: d10 => d10 },
+            { name: "goblet squat",     rep: d10 => d10 },
+            { name: "windmill",         rep: d10 => d10 },
+            { name: "deadlift",         rep: d10 => d10 + 5 }
         ]
+        excercises.forEach(e => {
+            e.totalReps = 0
+            e.numRolled = 0
+            e.timeSpent = 0
+        })
 
         const timer = new easytimer.Timer();
         const span_timer = document.getElementById("span_timer")
         const in_exc_minutes = document.getElementById("in_exc_minutes")
 
         var last_5_roll = []
+        var full_history = []
+        var ov_stats = excercises.map(e => 0)
         
-        const getDiceNum = n => Math.floor(Math.random() * (n - 1 + 1) + 1)
+        //const getDiceNum = n => Math.floor(Math.sqrt( Math.random() ) * (n - 1 + 1) + 1)
+
+        function getDiceNum(max) {
+            const minCeiled = 1 //Math.ceil(min);
+            const maxFloored = Math.floor(max);
+            return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled); // The maximum is inclusive and the minimum is inclusive
+          }
 
         const rollDice = n => {
             dice["d" + n].val = getDiceNum(n)
@@ -158,6 +183,104 @@
             }
         }
 
+        // colors from: https://colorbrewer2.org/#type=qualitative&scheme=Set2&n=8
+        const colors = ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3']
+
+        function sessionEndingTodo() {
+            excercises[dice.d6.val-1].timeSpent += (new Date() - excStartDT)
+            span_timer.classList.add("text-success")
+            span_timer.innerHTML = 'Congratulations, finished!'
+            btn_new_round.setAttribute("disabled", "disabled")
+
+            el_latest.classList.add("d-none")
+
+            console.log(excercises)
+
+            Plotly.newPlot(
+                document.getElementById("chart_exc_count"),
+                [
+                    {
+                        type: 'bar',
+                        x: excercises.map(e => e.numRolled),
+                        y: excercises.map(e => e.name),
+                        orientation: 'h',
+                        marker: {
+                            line: { width: 0 },
+                            color: colors
+                        }
+                    }
+                ],
+                {
+                    title: 'Excercise Distribution',
+                    xaxis: { title: 'number of rounds', font: { size: 9 }},
+                    yaxis: { gridcolor: '#333' },
+                    margin: { l: 100, t: 40, r: 60, b: 40 },
+                    paper_bgcolor: '#343a40',
+                    plot_bgcolor: '#343a40',
+                    font: { color: 'white' },
+                    height: 250,
+                },
+                { displayModeBar: false, responsive: true}
+            )
+
+            Plotly.newPlot(
+                document.getElementById("chart_exc_time"),
+                [
+                    {
+                        type: 'bar',
+                        x: excercises.map(e => e.timeSpent / 60 / 1000),
+                        y: excercises.map(e => e.name),
+                        orientation: 'h',
+                        marker: {
+                            line: { width: 0 },
+                            color: colors
+                        }
+                    }
+                ],
+                {
+                    title: 'Excercise Total Duration',
+                    xaxis: { title: 'minutes', font: { size: 9 }},
+                    yaxis: { gridcolor: '#333' },
+                    margin: { l: 100, t: 40, r: 60, b: 40 },
+                    paper_bgcolor: '#343a40',
+                    plot_bgcolor: '#343a40',
+                    font: { color: 'white' },
+                    height: 250
+                },
+                { displayModeBar: false, responsive: true }
+            )
+
+            Plotly.newPlot(
+                document.getElementById("chart_exc_reps"),
+                [
+                    {
+                        type: 'bar',
+                        x: excercises.map(e => e.name.startsWith("swing") ? e.totalReps / 5 : e.totalReps ),
+                        y: excercises.map(e => e.name.startsWith("swing") ? "swing (*5)" : e.name ),
+                        orientation: 'h',
+                        text: excercises.map(e => e.totalReps),
+                        textposition: 'auto',
+                        marker: {
+                            line: { width: 0 },
+                            color: colors
+                        }
+                    }
+                ],
+                {
+                    title: 'Excercise Reps',
+                    xaxis: { title: 'count', font: { size: 9 } },
+                    yaxis: { gridcolor: '#333' },
+                    margin: { l: 100, t: 40, r: 60, b: 40 },
+                    paper_bgcolor: '#343a40',
+                    plot_bgcolor: '#343a40',
+                    font: { color: 'white' },
+                    height: 250
+                },
+                { displayModeBar: false, responsive: true }
+            )
+        }
+
+        var excStartDT = new Date()
         btn_new_round.addEventListener('click', e => {
             if(roundCounter == 0) {
                 btn_new_round.innerHTML = btn_texts.next
@@ -170,25 +293,29 @@
                     span_timer.innerHTML = timer.getTimeValues().toString().substring(3)
                 });
 
-                timer.addEventListener('targetAchieved', function (e) {
-                    span_timer.classList.add("text-success")
-                    span_timer.innerHTML = 'Congratulations, finished!'
-                    btn_new_round.setAttribute("disabled", "disabled")
-                });
+                timer.addEventListener('targetAchieved', sessionEndingTodo);
 
                 in_exc_minutes.parentElement.classList.add("d-none")
                 btn_reset.classList.remove("d-none")
                 session_section.classList.remove("d-none")
+            } else {
+                excercises[dice.d6.val-1].timeSpent += (new Date() - excStartDT)
+                excStartDT = new Date()
             }
 
             roundCounter += 1
+
             rollDice(6)
             while(!check_last5(dice.d6.val)) {
                 rollDice(6)
             }
             rollDice(10)
 
-            const exc_text = excercises[dice.d6.val].rep(dice.d10.val) + " x "  +excercises[dice.d6.val].name 
+            excercises[dice.d6.val-1].numRolled += 1
+            excercises[dice.d6.val-1].totalReps += excercises[dice.d6.val-1].rep(dice.d10.val)
+            
+            
+            const exc_text = excercises[dice.d6.val-1].rep(dice.d10.val) + " x "  +excercises[dice.d6.val-1].name 
             actual_exc.innerHTML =  exc_text
             
             const li = document.createElement("li")
@@ -212,6 +339,12 @@
             roundCounter = 0
             btn_reset.classList.add("d-none")
             last_5_roll = []
+            excercises.forEach(e => {
+                e.totalReps = 0
+                e.numRolled = 0
+                e.timeSpent = 0
+            })
+            el_latest.classList.remove("d-none")
         })
 
     </script>
